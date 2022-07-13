@@ -1,10 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
-from fastapi.background import BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from routers import users, posts, comments, ratings
-from redis_conf import redis
-
 
 app = FastAPI()
 
@@ -19,17 +16,6 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*']
 )
-
-
-@app.get('/pubsub')
-def check_channel():
-    pubsub = redis.pubsub()
-    pubsub.subscribe('test')
-    try:
-        for message in pubsub.listen():
-            print(message)
-    except Exception as e:
-        raise e
 
 
 if __name__ == '__main__':

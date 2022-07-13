@@ -1,4 +1,4 @@
-from redis_om import get_redis_connection
+from aredis_om import get_redis_connection
 
 REDIS_HOST = "atomflare.af"
 REDIS_PORT = "6388"
