@@ -3,10 +3,9 @@ import asyncio
 
 async def check_channel():
     pubsub = redis.pubsub()
-    await pubsub.subscribe('user:CREATE', 'user:UPDATE', 'user:DELETE')
+    await pubsub.subscribe('user:CREATE-res', 'user:UPDATE-res', 'user:DELETE-res')
     try:
         async for message in pubsub.listen():
-            print(message)
             if message:
                 pass
             elif message:

@@ -19,7 +19,7 @@ router = APIRouter(
 @router.get('/{primary_key}', response_model=User, status_code=status.HTTP_200_OK)
 async def get_user_by_Id(primary_key: str) -> User:
     key = f"cache:{MS}:{primary_key}"
-    key_nx = f"cache:nx-{MS}:{primary_key}"
+    key_nx = f"cache-nx:{MS}:{primary_key}"
     if await redis.exists(key):
         return await redis.hgetall(key)
     elif await redis.exists(key_nx):
@@ -60,22 +60,22 @@ async def get_all_users(offset: int = 0, limit: int = 50) -> list[User]:
 async def create(data: User) -> User:
     key = f"cache:{MS}:{data.pk}"
     key_nx = f"cache-nx:{MS}:{data.pk}"
-    deletion, publishion, res = await asyncio.gather(
+    await asyncio.gather(
         redis.delete(key_nx),
         redis.publish("user:CREATE", f"{key}:{str(data.json())}"),
         redis.hmset(key, data.dict())
     )
-    return res
+    return data
 
 
 @router.put('/', response_model=User, status_code=status.HTTP_202_ACCEPTED)
 async def update(data: User) -> User:
     key = f"cache:{MS}:{data.pk}"
-    publishion, user = await asyncio.gather(
+    await asyncio.gather(
         redis.publish("user:UPDATE", f"{key}:{str(data.json())}"),
-        redis.hmset(key, User(*data.json()))
+        redis.hmset(key, data.dict())
     )
-    return user
+    return data
 
 
 @router.delete('/', status_code=status.HTTP_202_ACCEPTED)
@@ -86,11 +86,8 @@ async def delete(primary_key: str) -> int:
         return 0
     else:    
         deletion, store_nx, publishion = await asyncio.gather(
-            redis.hdel(key),
+            redis.delete(key),
             redis.set(key_nx, "null"),
             redis.publish("user:DELETE", f"{key}")
         )
         return deletion
-
-
-        # Time to implement background pubsub
