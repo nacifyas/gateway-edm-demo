@@ -1,3 +1,4 @@
+from ast import Not
 import asyncio
 from fastapi import status
 from redis_conf import redis
@@ -9,7 +10,7 @@ import requests
 MS = "user"
 HOST = "localhost"
 PORT = 8001
-EXPIRATION = 120
+EXPIRATION = 360
 
 class UserDAL:
     """Data Access Layer for Users. This API handles the access to data
@@ -39,24 +40,27 @@ class UserDAL:
         Returns:
             User: The querried user
         """
-        key_nx = f"cache-nx:{MS}:{primary_key}"
         try:
-            user = await User.get(primary_key)
-        except NotFoundError:
-            if await redis.exists(key_nx):
+            return await User.get(primary_key)
+        except:
+            pass
+
+        key_nx = f"cache-nx:{MS}:{primary_key}"
+        if await redis.exists(key_nx):
+            await redis.expire(key_nx, EXPIRATION)
+            raise NotFoundError
+        else:
+            request = requests.get(
+                f"http://{HOST}:{PORT}/{primary_key}"   
+            )
+            if request.status_code == status.HTTP_404_NOT_FOUND:
+                await redis.set(key_nx, "null", ex=EXPIRATION)
                 raise NotFoundError
             else:
-                request = requests.get(
-                    f"http://{HOST}:{PORT}/{primary_key}"   
-                )
-                if request.status_code == status.HTTP_404_NOT_FOUND:
-                    await redis.set(key_nx, "null", ex=EXPIRATION)
-                    raise NotFoundError()
-                else:
-                    data = request.json()
-                    user = User(**data)
-                    await user.save()
-                    return user
+                data = request.json()
+                user = User(**data)
+                await user.save()
+                return user
 
     
     async def gat_all_users(self, offset: int = 0, limit: int = 50) -> list[User]:
@@ -102,6 +106,11 @@ class UserDAL:
         Returns:
             User: the new user
         """
+        await asyncio.gather(
+            user.save()
+        )
+        return user
+
 
     async def delete_user(self, primary_key: str) -> int:
         """Given a user primary key, it deletes the user, and
@@ -118,7 +127,7 @@ class UserDAL:
                 was performed
         """
         key_nx = f"cache-nx:{MS}:{primary_key}"
-        deletion, nx_cache = asyncio.gather(
+        deletion, nx_cache = await asyncio.gather(
             User.delete(primary_key),
             redis.set(key_nx, "null", ex=EXPIRATION)
         )

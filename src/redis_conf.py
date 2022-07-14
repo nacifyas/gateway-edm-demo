@@ -8,5 +8,6 @@ redis = get_redis_connection(
     host=REDIS_HOST,
     port=REDIS_PORT,
     encoding=ENCODING,
-    decode_responses=True
+    decode_responses=True,
+    db=0
 )

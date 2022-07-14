@@ -72,8 +72,8 @@ async def create_user(user: User) -> User:
         User: The created user with all its fields.
     """
     await asyncio.gather(
-        UserDAL().create_user(),
-        redis.publish("user:CREATE", json.dumps(user)),
+        UserDAL().create_user(user),
+        redis.publish("user:CREATE", json.dumps(user.dict())),
     )
     return user
 
@@ -92,7 +92,7 @@ async def update_user(user: User) -> User:
         User: The input user
     """
     await asyncio.gather(
-        redis.publish("user:UPDATE", json.dumps(user)),
+        redis.publish("user:UPDATE", json.dumps(user.dict())),
         UserDAL().update_user(user)
     )
     return user
