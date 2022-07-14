@@ -1,4 +1,5 @@
 import asyncio
+import json
 from fastapi import APIRouter, HTTPException, status
 from dal.userdal import UserDAL
 from models.user import User
@@ -72,7 +73,7 @@ async def create_user(user: User) -> User:
     """
     await asyncio.gather(
         UserDAL().create_user(),
-        redis.publish("user:CREATE", f"{str(user.json())}"),
+        redis.publish("user:CREATE", json.dumps(user)),
     )
     return user
 
@@ -91,7 +92,7 @@ async def update_user(user: User) -> User:
         User: The input user
     """
     await asyncio.gather(
-        redis.publish("user:UPDATE", f"{str(user.json())}"),
+        redis.publish("user:UPDATE", json.dumps(user)),
         UserDAL().update_user(user)
     )
     return user
@@ -119,7 +120,7 @@ async def delete_user(primary_key: str) -> int:
     """
     deletion, publishion = await asyncio.gather(
         UserDAL().delete_user(primary_key),
-        redis.publish("user:DELETE", f"{primary_key}")
+        redis.publish("user:DELETE", primary_key)
     )
     return deletion
 
