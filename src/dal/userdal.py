@@ -69,8 +69,7 @@ class UserDAL:
         Returns:
             list[User]: A list of all the users according to the argument's range
         """
-        keys = await User().all_pks()
-        corr_arr = [redis.hgetall(key) for key in keys]
+        corr_arr = [self.get_user_by_id(key) async for key in await User.all_pks()]
         user_arr = await asyncio.gather(*corr_arr)
         return user_arr[offset:limit]
 
