@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from dal.userdal import UserDAL
 from models.user import User
 from redis_om import NotFoundError
-from redis_conf import redis
+from redis_conf import redis, redis_stream
 
 
 router = APIRouter(
@@ -48,9 +48,15 @@ async def get_all_users(offset: int = 0, limit: int = 50) -> list[User]:
     Returns:
         list[User]: It returns an array of users limited by the offset & limit arguments
     """
+    event = {
+        'SENDER':'GATEWAY',
+        'FLAG':'UPDATE_DB',
+        'OFFSET':offset,
+        'LIMIT':limit
+    }
     user_arr, publishion = await asyncio.gather(
         UserDAL().gat_all_users(offset, limit),
-        redis.publish("user:UPDATE_DB", f"{offset}:{limit}")
+        redis_stream.xadd('user', event)
     )
     return user_arr
 
@@ -73,14 +79,14 @@ async def create_user(user: User) -> User:
     """
     await asyncio.gather(
         UserDAL().create_user(user),
-        redis.publish("user:CREATE", json.dumps(user.dict())),
+        # redis_stream.publish("user:CREATE", ),
     )
     return user
 
 
 @router.put('/', response_model=User, status_code=status.HTTP_202_ACCEPTED)
 async def update_user(user: User) -> User:
-    """This endpoint is similar the POST endpoint of this API. It also
+    """ This endpoint is similar the POST endpoint of this API. It also
     generates a user:CREATE event in which it sends the input data.
     It expects an approval or a denial event for validation, from 
     the channel user:UPDATE-res
