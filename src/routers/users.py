@@ -35,6 +35,19 @@ async def get_user_by_Id(primary_key: str) -> User:
         )
 
 
+@router.get('/{primary_key}', response_model=User, status_code=status.HTTP_200_OK)
+async def get_users_by_username(username: str) -> list[User]:
+    """ Return all users mathing the username
+
+    Args:
+        username (str): username pattern
+
+    Returns:
+        list[User]: All users whose usernames match the username
+    """
+    return await UserDAL().get_users_by_username(username)
+
+
 @router.get('/', response_model=list[User], status_code=status.HTTP_200_OK)
 async def get_all_users(offset: int = 0, limit: int = 50) -> list[User]:
     """ This endpoint generates an "UPDATE_DB" event, on which it sends the specified
@@ -95,7 +108,7 @@ async def update_user(user: User) -> User:
         user (User): Existing user with mofied fields
 
     Returns:
-        User: The input user
+        User: The updated user
     """
     await asyncio.gather(
         redis.publish("user:UPDATE", json.dumps(user.dict())),

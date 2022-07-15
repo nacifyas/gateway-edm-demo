@@ -1,6 +1,6 @@
-from ast import Not
 import asyncio
 from fastapi import status
+from models import user
 from redis_conf import redis
 from redis_om import NotFoundError
 from models.user import User
@@ -28,7 +28,7 @@ class UserDAL:
             primary_key (str): given a primary key
 
         Raises:
-            NotFoundError: Raised if there is a cached entry
+            NotFoundError: If there is a cached entry
             about the non-existence of such user with the given
             primary_key
             NotFoundError: If the cache cannot prove the non-existence
@@ -63,6 +63,20 @@ class UserDAL:
                 return user
 
     
+    async def get_users_by_username(username: str) -> list[User]:
+        """ Uses redis search to retrieve all users whose username
+        match the given username
+
+        Args:
+            username (str): username pattern
+
+        Returns:
+            list[User]: List of all users whose usernames match
+            the given argument
+        """
+        return await User.find(User.username in username).all()
+
+
     async def gat_all_users(self, offset: int = 0, limit: int = 50) -> list[User]:
         """Retrieves all users in the database and returns those within
         the range by offser and limit

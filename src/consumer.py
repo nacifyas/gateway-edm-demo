@@ -60,11 +60,6 @@ async def stream_broker() -> None:
                         if status == "SUCCESS":
                             user = await UserDAL().get_user_by_id(primary_key)
                             user.status = status
-                # elif stream == 'post':
-                #     if flag == "UPDATE_DB":
-                        # corr_arr = [PostDAL().create_post(Post(**json.loads(post.replace("'",'"')))) for post in entry_data.values()]
-                        # await asyncio.gather(*corr_arr)
-                        # pass
             last_entry_id = stream_entry[-1][0]
             await redis.set(f'stream:{stream}', last_entry_id)
         streams = ACTIVE_STREAMS       
