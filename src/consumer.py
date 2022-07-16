@@ -1,5 +1,4 @@
 import json
-from os import stat
 from dal.userdal import EXPIRATION, UserDAL
 from models.user import User
 from redis_conf import redis, redis_stream
@@ -7,12 +6,22 @@ import asyncio
 
 
 ACTIVE_STREAMS = {
-    'user':'$',
-    'post':'$'
+    'user':'$'
 }
 
 
 async def get_initial_streams() -> dict[str:str]:
+    """ Retrieves the initial stream id for which
+    the subscription loop should begins. It searches
+    for the last processed id of a stream. If a new
+    stream is created in the ACTIVE_STREAMS static
+    variable, it will asign to it the id 0.
+
+    Returns:
+        dict[str:str]: All streams with their corresponding
+        id from which the stream listener should start
+        processing events
+    """
     streams = {}
     for stream in ACTIVE_STREAMS.keys():
         if await redis.exists(f'stream:{stream}'):
@@ -24,6 +33,13 @@ async def get_initial_streams() -> dict[str:str]:
 
 
 async def inicialize_streams():
+    """ Checks for all streams in ACTIVE_STREAMS
+    and creates them if these do not exist.
+    
+    Since the creation of a stream is an event of
+    its own, the specified FLAG is of the type
+    "CREATE [stream_name] STREAM"
+    """
     for stream in ACTIVE_STREAMS.keys():
         if not await redis_stream.exists(stream):
             await redis_stream.xadd(
@@ -36,13 +52,79 @@ async def inicialize_streams():
             )
 
 
+async def update_db_users_event(entry_data: dict[str:str]) -> None:
+    """ Reacts to the event "UPDATE_DB". It feeds the DAL
+    with all the data within the "entry_data"
+    Loads the users array within the string.
+
+    Args:
+        entry_data dict[str:str]: A dictionary containing the events data
+    """
+    corr_arr = [UserDAL().create_user(User(**json.loads(user.replace("'",'"')))) for user in entry_data.values()]
+    await asyncio.gather(*corr_arr)
+
+
+async def create_user_event(entry_data: dict[str:str]) -> None:
+    """ Reacts to the event "CREATE". This event contains
+    confirmation regarding a creating user at the gateway.
+    It changes the user status field its corresponding
+    according to the data contained in the event.
+
+    Args:
+        entry_data dict[str:str]: A dictionary containing the events data
+    """
+    status = entry_data.get("STATUS")
+    primary_key = entry_data.get("PRIMARY_KEY")
+    user = await UserDAL().get_user_by_id(primary_key)
+    user.status = status
+    if status == "FAIL":
+        await user.expire(EXPIRATION)
+    await user.save()
+
+
+async def delete_user_event(entry_data: dict[str:str]) -> None:
+    """ Reacts to the event "DELETE". This events contains
+    information regarding the deletion of a user. The deletion
+    will be conducted through the UserDAL if this event approves
+    it with, or it will be aborted, according to the event data.
+
+    Args:
+        entry_data dict[str:str]: Event data
+    """
+    status = entry_data.get("STATUS")
+    primary_key = entry_data.get("PRIMARY_KEY")
+    if status == "SUCCESS":
+        await UserDAL().delete_user(primary_key)
+    elif status == "FAIL":
+        user = await UserDAL().get_user_by_id(primary_key)
+        user.status = "FAILED DELETION"
+
+
 async def stream_broker() -> None:
+    """ Listens to the events broker in a blocking fashion,
+    making use of the redis stream, push manner of
+    delivering messages.
+
+    Whenever this funcion if first time runned, it will
+    always call "inicialize_streams", to check the streams
+    existance  and "get_initial_streams" to get the last ids
+    in the mentioned order, for its proper functioning.
+
+    After having processed the pending messages from the
+    last id, it sets all the streams to the "$" events, 
+    which eventually starts the blocking for loop.
+
+    During the processing of the content of the events
+    entries, it runs a check for the sender of each message
+    so it avoids processing by mistake its own emited events.
+
+    For each operation triggered by an event, it calls a
+    function wich performs the requiered operation
+    """
     await inicialize_streams()
     streams = await get_initial_streams()
     while True:
-        print(streams)
         for message in await redis_stream.xread(streams, block=0):
-            print(message)
             stream, stream_entry = message
             for entry in stream_entry:
                 entry_id, entry_data = entry
@@ -52,24 +134,11 @@ async def stream_broker() -> None:
                     break
                 if stream == 'user':
                     if flag == "UPDATE_DB":
-                        corr_arr = [UserDAL().create_user(User(**json.loads(user.replace("'",'"')))) for user in entry_data.values()]
-                        await asyncio.gather(*corr_arr)
+                        asyncio.run(update_db_users_event(entry_data))
                     elif flag == "CREATE":
-                        status = entry_data.get("STATUS")
-                        primary_key = entry_data.get("PRIMARY_KEY")
-                        user = await UserDAL().get_user_by_id(primary_key)
-                        user.status = status
-                        if status == "FAIL":
-                            await user.expire(EXPIRATION)
-                        await user.save()
+                        asyncio.run(create_user_event(entry_data))
                     elif flag == "DELETE":
-                        status = entry_data.get("STATUS")
-                        primary_key = entry_data.get("PRIMARY_KEY")
-                        if status == "SUCCESS":
-                            await UserDAL().delete_user(primary_key)
-                        elif status == "FAIL":
-                            user = await UserDAL().get_user_by_id(primary_key)
-                            user.status = "FAILED DELETION"
+                        asyncio.run(delete_user_event(entry_data))
             last_entry_id = stream_entry[-1][0]
             await redis.set(f'stream:{stream}', last_entry_id)
         streams = ACTIVE_STREAMS       
@@ -77,69 +146,3 @@ async def stream_broker() -> None:
 
 if __name__ == '__main__':
     asyncio.run(stream_broker())
-
-
-# a_message = ['stream',
-#         [
-#             ('id', {'foo': 'bar'}),
-#             ('1657877859857-0', {'key': 'value'}), 
-#             ('1657877924620-0', {'key': 'value'})
-#         ]
-#     ]
-
-# list_of_messages = [
-#     ['test2',
-#         [
-#             ('1657877191536-0', {'shall': 'we'}),
-#             ('1657877859857-0', {'key': 'value'}), 
-#             ('1657877924620-0', {'key': 'value'})
-#         ]
-#     ], 
-#     ['test', 
-#         [
-#             ('1657876148555-0', {'foo': 'bar'}),
-#             ('1657876164292-0', {'foo': 'bar'}),
-#             ('1657876239169-0', {'key': 'value'}),
-#             ('1657876459676-0', {'key': 'value'}),
-#             ('1657876489402-0', 
-#                                   {
-#                                     'FLAG': 'UPDATE_DB',
-#                                     'User': "doing bussines'"
-#                                   }
-#              ),
-#             ('1657876520882-0', {'12': 'then 4'}),
-#             ('1657876996505-0', {'say': 'hellooo'}),
-#             ('1657877037118-0', {'key1': 'value1', 'key2': 'value2', 'key3': 'value3'}),
-#             ('1657877146757-0', {'satus': 'hello', 'status 2.0': 'hello 2.0'}),
-#             ('1657877852438-0', {'key': 'value'}),
-#             ('1657877917734-0', {'key': 'value', '': ''})
-#         ]
-#     ]
-# ]
-
-
-# from dal.userdal import UserDAL
-# from redis_conf import redis
-# from models.user import User
-# import asyncio
-# import json
-
-# async def check_channel():
-#     pubsub = redis.pubsub()
-#     await pubsub.subscribe('user:UPDATE_DB-res', 'user:CREATE-res', 'user:UPDATE-res')
-#     async for message in pubsub.listen():
-#         data: str = message.get("data")
-#         if message.get("type") == 'user:UPDATE_DB-res' and data not in range(4):
-#             user_arr = data.split('--')
-#             corr_arr = [UserDAL().create_user(User(**json.loads(user.replace("'",'"')))) for user in user_arr]
-#             await asyncio.gather(*corr_arr)
-#         elif (message.get("channel") == 'user:CREATE-res' or message.get("channel") == 'user:CREATE-res') and data not in range(4):
-#             data_arr = data.split(':')
-#             status = data_arr[0]
-#             key = data_arr[1]
-#             details = data_arr[2]
-#             if status == 'ERROR':
-#                 redis.hmset(key, {'error' : details})
-
-# if __name__ == '__main__':
-    # asyncio.run(check_channel())
