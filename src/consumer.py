@@ -1,5 +1,6 @@
 import json
-from dal.userdal import UserDAL
+from os import stat
+from dal.userdal import EXPIRATION, UserDAL
 from models.user import User
 from redis_conf import redis, redis_stream
 import asyncio
@@ -56,10 +57,19 @@ async def stream_broker() -> None:
                     elif flag == "CREATE":
                         status = entry_data.get("STATUS")
                         primary_key = entry_data.get("PRIMARY_KEY")
-                        message = entry_data.get("MESSAGE")
+                        user = await UserDAL().get_user_by_id(primary_key)
+                        user.status = status
+                        if status == "FAIL":
+                            await user.expire(EXPIRATION)
+                        await user.save()
+                    elif flag == "DELETE":
+                        status = entry_data.get("STATUS")
+                        primary_key = entry_data.get("PRIMARY_KEY")
                         if status == "SUCCESS":
+                            await UserDAL().delete_user(primary_key)
+                        elif status == "FAIL":
                             user = await UserDAL().get_user_by_id(primary_key)
-                            user.status = status
+                            user.status = "FAILED DELETION"
             last_entry_id = stream_entry[-1][0]
             await redis.set(f'stream:{stream}', last_entry_id)
         streams = ACTIVE_STREAMS       
