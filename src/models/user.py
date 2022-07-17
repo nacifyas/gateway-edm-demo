@@ -2,7 +2,7 @@ from aredis_om import HashModel, Field
 from redis_conf import redis
 
 
-class UserRead(HashModel):
+class UserCreate(HashModel):
     username: str
     age: int
     password: str
@@ -10,8 +10,5 @@ class UserRead(HashModel):
     class Meta:
         database = redis
 
-class User(UserRead):
+class User(UserCreate):
     status: str = "PROCESSING"
-
-    class Meta:
-        database = redis
