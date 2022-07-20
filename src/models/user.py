@@ -1,5 +1,5 @@
 from aredis_om import HashModel, Field
-from redis_conf import redis
+from config.redis_conf import redis
 
 
 class UserCreate(HashModel):

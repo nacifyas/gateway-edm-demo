@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, status
 from dal.userdal import UserDAL
 from models.user import User, UserCreate
 from redis_om import NotFoundError
-from redis_conf import redis_stream
+from config.redis_conf import redis_stream
 
 
 router = APIRouter(

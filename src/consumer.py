@@ -1,7 +1,7 @@
 import json
 from dal.userdal import EXPIRATION, UserDAL
 from models.user import User
-from redis_conf import redis, redis_stream
+from config.redis_conf import redis, redis_stream
 import asyncio
 
 

@@ -1,7 +1,7 @@
 import asyncio
 from fastapi import status
 from models import user
-from redis_conf import redis
+from config.redis_conf import redis
 from redis_om import NotFoundError
 from models.user import User
 import requests
