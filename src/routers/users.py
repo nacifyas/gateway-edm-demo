@@ -1,9 +1,9 @@
 import json
 import asyncio
-from config.variables import THIS_SERVICE
 from dal.userdal import UserDAL
 from redis_om import NotFoundError
 from models.user import User, UserCreate
+from config.variables import THIS_SERVICE
 from config.redis_conf import redis_stream
 from fastapi import APIRouter, HTTPException, status
 
