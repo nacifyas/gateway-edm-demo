@@ -1,10 +1,9 @@
 import asyncio
-from fastapi import status
-from models import user
-from config.redis_conf import redis
-from redis_om import NotFoundError
-from models.user import User
 import requests
+from fastapi import status
+from models.user import User
+from redis_om import NotFoundError
+from config.redis_conf import redis
 
 
 MS = "user"
@@ -146,5 +145,3 @@ class UserDAL:
             redis.set(key_nx, "null", ex=EXPIRATION)
         )
         return deletion
-
-        

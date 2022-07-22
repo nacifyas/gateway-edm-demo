@@ -1,13 +1,46 @@
 import json
-from dal.userdal import EXPIRATION, UserDAL
-from models.user import User
-from config.redis_conf import redis, redis_stream
 import asyncio
+from models.user import User
+from config.variables import THIS_SERVICE
+from dal.userdal import EXPIRATION, UserDAL
+from config.redis_conf import redis, redis_stream
 
+""" The events topology
+consists of the following
+structure:
+    event: dict[str:str] = {
+        SENDER [<MICROSERVICE NAME>]: Specifies who is behind
+        the sent event. It serves useful to avoid retrofeeding
+        its own events.
+        
+        OP [CREATE, READ, UPDATE, DELETE]: Represents
+        the operation regarding the event.
+
+        FLAG [REQ, ACK, INFO]: Specifies the intention of the event.
+        Events could have a REQUEST intention,
+        like when the gateway requests the validation
+        of a CUD operation, before commiting the data
+        to its cache database, or have a ACKNOWLEDGEMENT
+        or CONFIRMATION intention which is the response
+        validating the CUD operation, or an INFORMATIVE
+        intention, just to notify a transaction.
+        
+        STATUS [OK, FAIL]: It complements the FLAG
+        CONFIRMATION only, in order to approve (OK)
+        or decline (FAIL) a CUD operation.
+
+        DATA: Data in key-value pairs, added as
+        more entries, or as a large string, that will
+        be parssed when retrieved. It could contain
+        the keys separated by commas, that need to be
+        retrieved to get the needed data
+    }
+"""
 
 ACTIVE_STREAMS = {
     'user':'$'
 }
+STREAM_MAX_LENGHT = 10000
 
 
 async def get_initial_streams() -> dict[str:str]:
@@ -37,28 +70,46 @@ async def inicialize_streams():
     and creates them if these do not exist.
     
     Since the creation of a stream is an event of
-    its own, the specified FLAG is of the type
-    "CREATE [stream_name] STREAM"
+    its own, the specified its fields will consist
+    of:
+        event = {
+            SENDER: The microservice who created the
+            missing streams
+
+            OP: CREATE_STREAM
+            It uses this special variant of CREATE
+            to avoid this event being accidentally
+            processed
+
+            FLAG: INFO
+
+            DATA: <stream name>
+        }
     """
     for stream in ACTIVE_STREAMS.keys():
         if not await redis_stream.exists(stream):
+            event = {
+                'SENDER': THIS_SERVICE,
+                'OP': 'CREATE_STREAM',
+                'FLAG': 'INFO',
+                'DATA': stream
+            }
             await redis_stream.xadd(
-                stream,
-                fields={
-                    'FLAG':f'CREATE {stream} STREAM',
-                    'SENDER':'GATEWAY'
-                },
-                maxlen=10000
+                name=stream,
+                fields=event,
+                maxlen=STREAM_MAX_LENGHT
             )
 
 
-async def update_db_users_event(entry_data: dict[str:str]) -> None:
-    """ Reacts to the event "UPDATE_DB". It feeds the DAL
-    with all the data within the "entry_data"
+async def read_user_event(entry_data: dict[str:str]) -> None:
+    """ Reacts to the event "READ", which contains updates
+    or information regarding a service database.
+    It feeds the DAL with all the data within the "entry_data"
     Loads the users array within the string.
 
     Args:
-        entry_data dict[str:str]: A dictionary containing the events data
+        entry_data dict[str:str]: A dictionary containing db entries
+        for each of its values
     """
     corr_arr = [UserDAL().create_user(User(**json.loads(user.replace("'",'"')))) for user in entry_data.values()]
     await asyncio.gather(*corr_arr)
@@ -73,13 +124,11 @@ async def create_user_event(entry_data: dict[str:str]) -> None:
     Args:
         entry_data dict[str:str]: A dictionary containing the events data
     """
-    status = entry_data.get("STATUS")
-    primary_key = entry_data.get("PRIMARY_KEY")
+    status = entry_data.pop("STATUS")
+    primary_key = entry_data.get("DATA")
     user = await UserDAL().get_user_by_id(primary_key)
-    user.status = status
-    if status == "FAIL":
-        await user.expire(EXPIRATION)
-    await user.save()
+    if status == "OK":
+        await UserDAL().create_user(user)
 
 
 async def delete_user_event(entry_data: dict[str:str]) -> None:
@@ -91,13 +140,10 @@ async def delete_user_event(entry_data: dict[str:str]) -> None:
     Args:
         entry_data dict[str:str]: Event data
     """
-    status = entry_data.get("STATUS")
-    primary_key = entry_data.get("PRIMARY_KEY")
-    if status == "SUCCESS":
+    status = entry_data.pop("STATUS")
+    primary_key = entry_data.get("DATA")
+    if status == "OK":
         await UserDAL().delete_user(primary_key)
-    elif status == "FAIL":
-        user = await UserDAL().get_user_by_id(primary_key)
-        user.status = "FAILED DELETION"
 
 
 async def stream_broker() -> None:
@@ -128,17 +174,21 @@ async def stream_broker() -> None:
             stream, stream_entry = message
             for entry in stream_entry:
                 entry_id, entry_data = entry
-                flag = entry_data.pop("FLAG")
                 sender = entry_data.pop("SENDER")
-                if sender == 'GATEWAY':
+                operation = entry_data.pop("OP")
+                flag = entry_data.pop("FLAG")
+                if sender == THIS_SERVICE:
                     break
                 if stream == 'user':
-                    if flag == "UPDATE_DB":
-                        asyncio.run(update_db_users_event(entry_data))
-                    elif flag == "CREATE":
-                        asyncio.run(create_user_event(entry_data))
-                    elif flag == "DELETE":
-                        asyncio.run(delete_user_event(entry_data))
+                    if operation == "READ":
+                        if flag == "ACK":
+                            asyncio.run(read_user_event(entry_data))
+                    elif operation == "CREATE":
+                        if flag == "ACK":
+                            asyncio.run(create_user_event(entry_data))
+                    elif operation == "DELETE":
+                        if flag == "ACK":
+                            asyncio.run(delete_user_event(entry_data))
             last_entry_id = stream_entry[-1][0]
             await redis.set(f'stream:{stream}', last_entry_id)
         streams = ACTIVE_STREAMS       

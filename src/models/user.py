@@ -1,4 +1,4 @@
-from aredis_om import HashModel, Field
+from aredis_om import HashModel
 from config.redis_conf import redis
 
 
