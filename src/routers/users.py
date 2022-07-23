@@ -55,7 +55,6 @@ async def get_all_users(offset: int = 0, limit: int = 50) -> list[User]:
     event = {
         'SENDER':THIS_SERVICE,
         'OP':'READ',
-        'FLAG':'REQ',
         'DATA':'OFFSET,LIMIT',
         'OFFSET': offset,
         'LIMIT':limit
@@ -90,7 +89,6 @@ async def create_user(user: UserCreate) -> User:
     event = {
         'SENDER':THIS_SERVICE,
         'OP':'CREATE',
-        'FLAG':'REQ',
         'DATA':json.dumps(user.dict()),
     }
     await redis_stream.xadd('user', event)   
@@ -119,7 +117,6 @@ async def delete_user(primary_key: str) -> int:
         event = {
             'SENDER':THIS_SERVICE,
             'OP':'DELETE',
-            'FLAG':'REQ',
             'DATA':primary_key
         }
         await asyncio.gather(

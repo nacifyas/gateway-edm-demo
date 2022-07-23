@@ -15,15 +15,6 @@ structure:
         
         OP [CREATE, READ, UPDATE, DELETE]: Represents
         the operation regarding the event.
-
-        FLAG [REQ, ACK, INFO]: Specifies the intention of the event.
-        Events could have a REQUEST intention,
-        like when the gateway requests the validation
-        of a CUD operation, before commiting the data
-        to its cache database, or have a ACKNOWLEDGEMENT
-        or CONFIRMATION intention which is the response
-        validating the CUD operation, or an INFORMATIVE
-        intention, just to notify a transaction.
         
         STATUS [OK, FAIL]: It complements the FLAG
         CONFIRMATION only, in order to approve (OK)
@@ -81,8 +72,6 @@ async def inicialize_streams():
             to avoid this event being accidentally
             processed
 
-            FLAG: INFO
-
             DATA: <stream name>
         }
     """
@@ -91,7 +80,6 @@ async def inicialize_streams():
             event = {
                 'SENDER': THIS_SERVICE,
                 'OP': 'CREATE_STREAM',
-                'FLAG': 'INFO',
                 'DATA': stream
             }
             await redis_stream.xadd(
@@ -176,19 +164,15 @@ async def stream_broker() -> None:
                 entry_id, entry_data = entry
                 sender = entry_data.pop("SENDER")
                 operation = entry_data.pop("OP")
-                flag = entry_data.pop("FLAG")
                 if sender == THIS_SERVICE:
                     break
                 if stream == 'user':
                     if operation == "READ":
-                        if flag == "ACK":
-                            asyncio.run(read_user_event(entry_data))
+                        asyncio.run(read_user_event(entry_data))
                     elif operation == "CREATE":
-                        if flag == "ACK":
-                            asyncio.run(create_user_event(entry_data))
+                        asyncio.run(create_user_event(entry_data))
                     elif operation == "DELETE":
-                        if flag == "ACK":
-                            asyncio.run(delete_user_event(entry_data))
+                        asyncio.run(delete_user_event(entry_data))
             last_entry_id = stream_entry[-1][0]
             await redis.set(f'stream:{stream}', last_entry_id)
         streams = ACTIVE_STREAMS       

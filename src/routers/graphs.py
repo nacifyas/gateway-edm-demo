@@ -1,11 +1,7 @@
-from asyncio import events
-import json
-from config.variables import THIS_SERVICE
-import redis
-from config.redis_conf import redis_stream
 import requests
-from models.graph import User
 from datetime import datetime
+from config.variables import THIS_SERVICE
+from config.redis_conf import redis_stream
 from fastapi import APIRouter, Response, status
 
 ROOT = "http://127.0.0.1/8002"
@@ -61,7 +57,6 @@ async def create_edge(node_follower_pk: str, node_followed_pk: str, properties: 
     event = {
         'SENDER':THIS_SERVICE,
         'OP':'CREATE',
-        'FLAG':'REQ',
         'DATA':'NODE_FOLLOWER_PK, NODE_FOLLOWED_PK, PROPERTIES',
         'NODE_FOLLOWER_PK': node_follower_pk,
         'NODE_FOLLOWED_PK': node_followed_pk,
@@ -89,7 +84,6 @@ async def delete_edge(node1_primary_key: str, node2_primary_key: str) -> Respons
     event = {
         'SENDER':THIS_SERVICE,
         'OP':'CREATE',
-        'FLAG':'REQ',
         'DATA':'NODE1_PRIMARY_KEY,NODE2_PRIMARY_KEY',
         'NODE1_PRIMARY_KEY':node1_primary_key,
         'NODE2_PRIMARY_KEY':node2_primary_key
