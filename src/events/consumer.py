@@ -15,10 +15,6 @@ structure:
         
         OP [CREATE, READ, UPDATE, DELETE]: Represents
         the operation regarding the event.
-        
-        STATUS [OK, FAIL]: It complements the FLAG
-        CONFIRMATION only, in order to approve (OK)
-        or decline (FAIL) a CUD operation.
 
         DATA: Data in key-value pairs, added as
         more entries, or as a large string, that will
@@ -99,6 +95,7 @@ async def read_user_event(entry_data: dict[str:str]) -> None:
         entry_data dict[str:str]: A dictionary containing db entries
         for each of its values
     """
+    entry_data.pop('DATA', '')
     corr_arr = [UserDAL().create_user(User(**json.loads(user.replace("'",'"')))) for user in entry_data.values()]
     await asyncio.gather(*corr_arr)
 
@@ -112,11 +109,10 @@ async def create_user_event(entry_data: dict[str:str]) -> None:
     Args:
         entry_data dict[str:str]: A dictionary containing the events data
     """
-    status = entry_data.pop("STATUS")
-    primary_key = entry_data.get("DATA")
-    user = await UserDAL().get_user_by_id(primary_key)
-    if status == "OK":
-        await UserDAL().create_user(user)
+    key = entry_data.get("DATA")
+    user_str = entry_data.pop(key)
+    user = User(**json.loads(user_str.replace("'",'"')))
+    await UserDAL().create_user(user)
 
 
 async def delete_user_event(entry_data: dict[str:str]) -> None:
@@ -128,10 +124,8 @@ async def delete_user_event(entry_data: dict[str:str]) -> None:
     Args:
         entry_data dict[str:str]: Event data
     """
-    status = entry_data.pop("STATUS")
     primary_key = entry_data.get("DATA")
-    if status == "OK":
-        await UserDAL().delete_user(primary_key)
+    await UserDAL().delete_user(primary_key)
 
 
 async def stream_broker() -> None:
