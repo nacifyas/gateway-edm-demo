@@ -1,12 +1,13 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import users
+from routers import users, graphs
 
 
 app = FastAPI()
 
 app.include_router(users.router)
+app.include_router(graphs.router)
 
 app.add_middleware(
     CORSMiddleware,
