@@ -2,7 +2,7 @@ import json
 import asyncio
 from models.user import User
 from config.variables import THIS_SERVICE
-from dal.userdal import EXPIRATION, UserDAL
+from dal.userdal import UserDAL
 from config.redis_conf import redis, redis_stream
 
 """ The events topology
