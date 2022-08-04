@@ -1,3 +1,6 @@
+[![CodeQL](https://github.com/nacifyas/gateway-edm-demo/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/nacifyas/gateway-edm-demo/actions/workflows/codeql-analysis.yml)
+[![Build](https://github.com/nacifyas/gateway-edm-demo/actions/workflows/flak8-mypy-build.yml/badge.svg)](https://github.com/nacifyas/gateway-edm-demo/actions/workflows/flak8-mypy-build.yml)
+
 Microservice API Gateway.
 
 This MS servers as a API Gateway the following microservices:
