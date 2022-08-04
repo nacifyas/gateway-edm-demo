@@ -3,7 +3,7 @@
 
 Microservice API Gateway.
 
-This MS servers as a API Gateway the following microservices:
+This MS servs as a API Gateway the following microservices:
 - [User Microservice](https://github.com/nacifyas/users-demo)
 - [Posts Microservice](https://github.com/nacifyas/posts-demo)
 - [Graphs Microservice](https://github.com/nacifyas/followups-ms)
