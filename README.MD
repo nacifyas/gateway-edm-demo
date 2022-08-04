@@ -23,4 +23,6 @@ To install and use this project, make sure to have Python >3.7 installed as well
 6. Run the PubSub consumer with ```py src\events\consumer.py```
 7. A good place to start using the project is at ```127.0.0.1:8000```
 
+Remember to change the static variables, and most importantly the DB connections variables accordingly located at \src\config\
+
 Apply the mentioned steps accordingly for each microservice to install the entire system.
